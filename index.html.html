@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpendWise - Know Before You Spend</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Cash Breakdown Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        teal: {
+                            800: '#064e5f',
+                            700: '#085f75',
+                            600: '#0e7490',
+                            500: '#14919b',
+                            100: '#e0f2fe',
+                            50: '#f0f9ff'
+                        },
+                        brand: {
+                            dark: '#085f75',
+                            accent: '#0284c7',
+                            light: '#f0f9ff',
+                            slate: '#0f172a'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+        }
+        .card-shadow {
+            box-shadow: 0 4px 20px -2px rgba(8, 95, 117, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+        }
+        .gradient-header {
+            background: linear-gradient(135deg, #064e5f 0%, #085f75 60%, #0284c7 100%);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation / Header -->
+    <header class="gradient-header text-white sticky top-0 z-40 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center text-white text-xl font-bold border border-white/20">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight leading-none">SpendWise</h1>
+                    <p class="text-xs text-cyan-200 font-medium">Know Before You Spend.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <span id="storageStatusBadge" class="hidden sm:inline-flex items-center gap-1.5 bg-slate-500/20 text-slate-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-400/30">
+                    <i class="fa-solid fa-spinner fa-spin text-xs"></i> Storage Checking...
+                </span>
+                <button onclick="openModal('embedModal')" class="hidden sm:inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition">
+                    <i class="fa-solid fa-code"></i> Embed on Google Sites
+                </button>
+                <button onclick="openModal('privacyModal')" class="p-2 text-cyan-100 hover:text-white hover:bg-white/10 rounded-lg transition" title="Privacy & Storage Information">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                </button>
+                <button onclick="confirmResetData()" class="p-2 text-cyan-100 hover:text-white hover:bg-white/10 rounded-lg transition" title="Reset All Data">
+                    <i class="fa-solid fa-rotate-right text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Banner / Alert for Shortfall if applicable -->
+        <div id="shortfallAlert" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0 text-red-500">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-bold text-red-800">Budget Shortfall Alert</h3>
+                    <p class="text-xs text-red-700 mt-1" id="shortfallDetails">Your committed obligations (bills, savings & buffer) exceed your checking balance by $0.00.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage Availability Banner Warning if Third-Party Storage Blocked -->
+        <div id="storageWarningBanner" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm">
+            <div class="flex items-start">
+                <div class="flex-shrink-0 text-amber-500 mt-0.5">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-bold text-amber-800">Browser Storage Blocked by Embedded Sandbox</h3>
+                    <p class="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                        Your browser or embedding site (Google Sites / Canvas) has disabled <code>localStorage</code> inside cross-origin iframes. Any additions or edits will function during your current session but <strong>will disappear when refreshed</strong>. To save data permanently across reloads, open this application directly in its own browser tab.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 1: KEY METRICS DASHBOARD -->
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Checking Balance -->
+            <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-100 relative overflow-hidden group">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Current Checking</span>
+                    <button onclick="openModal('editCheckingModal')" class="text-slate-400 hover:text-teal-700 p-1 text-xs font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-pen"></i> Edit
+                    </button>
+                </div>
+                <div class="text-3xl font-extrabold text-slate-900" id="dashChecking">$1,450.00</div>
+                <p class="text-xs text-slate-500 mt-1">Total in checking account</p>
+                <div class="absolute bottom-0 left-0 right-0 h-1 bg-slate-200"></div>
+            </div>
+
+            <!-- Card 2: Total Reserved & Committed -->
+            <div class="bg-white rounded-2xl p-5 card-shadow border border-slate-100 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Committed & Reserved</span>
+                    <i class="fa-solid fa-lock text-slate-400 text-sm"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-slate-800" id="dashReserved">$1,188.00</div>
+                <div class="flex items-center justify-between text-xs text-slate-500 mt-1">
+                    <span>Bills + Savings + Buffer</span>
+                    <span id="dashReserveRatio" class="font-semibold text-slate-700">81.9%</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-1 bg-amber-400"></div>
+            </div>
+
+            <!-- Card 3: Safe To Spend -->
+            <div class="bg-teal-800 text-white rounded-2xl p-5 card-shadow relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-teal-200">Safe-To-Spend</span>
+                    <span class="bg-teal-700 text-teal-100 text-[10px] font-bold px-2 py-0.5 rounded-full border border-teal-600">Discretionary</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white" id="dashSafeToSpend">$262.00</div>
+                <p class="text-xs text-teal-200 mt-1">Free cash available until payday</p>
+                <div class="absolute bottom-0 left-0 right-0 h-1 bg-teal-400"></div>
+            </div>
+
+            <!-- Card 4: Daily Allowance -->
+            <div class="bg-white rounded-2xl p-5 card-shadow border border-teal-100 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-teal-800">Daily Allowance</span>
+                    <i class="fa-solid fa-calendar-day text-teal-600"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-teal-700" id="dashDailyAllowance">$18.71</div>
+                <div class="flex items-center justify-between text-xs text-slate-500 mt-1">
+                    <span>Safe-to-Spend / Days Left</span>
+                    <span id="dashDaysLeftBadge" class="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-bold">14 days left</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-1 bg-teal-600"></div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: INSTANT PURCHASE SIMULATOR -->
+        <section class="bg-white rounded-2xl p-5 sm:p-6 card-shadow border border-slate-100">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-teal-700"></i>
+                        Instant Purchase Simulator
+                    </h2>
+                    <p class="text-xs text-slate-500">Test potential purchases before spending to see how they impact your daily budget.</p>
+                </div>
+                <span class="self-start sm:self-center text-xs bg-slate-100 text-slate-600 font-medium px-2.5 py-1 rounded-lg">
+                    <i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Real-Time Calculation
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Inputs -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Item / Expense Name</label>
+                        <input type="text" id="simItemName" value="Concert Ticket & Uber" placeholder="e.g. Shoes, Dinner, Concert" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-teal-600 focus:bg-white outline-none transition">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Price ($)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-400 font-medium text-sm">$</span>
+                                <input type="number" id="simPrice" value="120" min="0" step="0.01" class="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-teal-600 focus:bg-white outline-none transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Category</label>
+                            <select id="simCategory" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-teal-600 focus:bg-white outline-none transition">
+                                <option value="Entertainment">Entertainment</option>
+                                <option value="Dining Out">Dining Out</option>
+                                <option value="Shopping">Shopping</option>
+                                <option value="Travel">Travel</option>
+                                <option value="Electronics">Electronics</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Visual Impact Slider Preview -->
+                    <div class="pt-2">
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span class="text-slate-600">Percent of Safe-To-Spend</span>
+                            <span id="simPercentText" class="text-teal-700">45.8%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
+                            <div id="simPercentBar" class="bg-teal-600 h-full transition-all duration-300" style="width: 45.8%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Results -->
+                <div class="lg:col-span-7 bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-200 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Simulation Impact Breakdown</div>
+                        
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                            <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                <span class="text-[11px] text-slate-500 font-semibold block">Revised Safe-to-Spend</span>
+                                <span id="simRevisedSafe" class="text-lg font-bold text-slate-900">$142.00</span>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                <span class="text-[11px] text-slate-500 font-semibold block">Revised Daily Allowance</span>
+                                <span id="simRevisedDaily" class="text-lg font-bold text-slate-900">$10.14</span>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200 col-span-2 sm:col-span-1">
+                                <span class="text-[11px] text-slate-500 font-semibold block">Daily Drop</span>
+                                <span id="simDailyDrop" class="text-lg font-bold text-red-600">-$8.57 / day</span>
+                            </div>
+                        </div>
+
+                        <!-- Affordability Verdict Box -->
+                        <div id="simVerdictBox" class="p-3.5 rounded-xl border flex items-start gap-3 bg-amber-50 border-amber-200 text-amber-900">
+                            <div id="simVerdictIcon" class="text-amber-600 text-xl mt-0.5">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <div>
+                                <h4 id="simVerdictTitle" class="font-bold text-sm">CAUTION • SIGNIFICANT IMPACT</h4>
+                                <p id="simVerdictDesc" class="text-xs mt-0.5 leading-relaxed text-amber-800">
+                                    Affordable, but consumes 45.8% of your discretionary cash and drops daily allowance to $10.14/day.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-slate-500 flex items-center justify-between border-t border-slate-200/80 pt-3">
+                        <span><i class="fa-regular fa-clock mr-1"></i> Payday Runway: <strong id="simRunwayText" class="text-slate-700">Budget Intact</strong></span>
+                        <span class="text-[11px] text-slate-400">Calculated live locally</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3 & 4 GRID: BILLS & SAVINGS -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- BILL TRACKER -->
+            <section class="bg-white rounded-2xl p-5 card-shadow border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                                <i class="fa-regular fa-calendar-check text-teal-700"></i>
+                                Upcoming Committed Bills
+                            </h2>
+                            <p class="text-xs text-slate-500">Unpaid bills prior to payday deduct from Safe-To-Spend</p>
+                        </div>
+                        <button onclick="openModal('addBillModal')" class="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> Add Bill
+                        </button>
+                    </div>
+
+                    <!-- Bills List -->
+                    <div class="overflow-x-auto max-h-[300px] overflow-y-auto pr-1">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase">
+                                    <th class="pb-2">Bill / Expense</th>
+                                    <th class="pb-2">Due Date</th>
+                                    <th class="pb-2 text-right">Amount</th>
+                                    <th class="pb-2 text-center">Paid?</th>
+                                    <th class="pb-2 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billsTableBody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Dynamic Render -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                    <span class="text-slate-500">Total Unpaid Before Payday:</span>
+                    <span id="totalUnpaidBillsText" class="font-bold text-slate-900 text-sm">$688.00</span>
+                </div>
+            </section>
+
+            <!-- SAVINGS GOALS -->
+            <section class="bg-white rounded-2xl p-5 card-shadow border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-piggy-bank text-teal-700"></i>
+                                Savings Goals & Target Allocation
+                            </h2>
+                            <p class="text-xs text-slate-500">Monthly contributions reserved directly from cash</p>
+                        </div>
+                        <button onclick="openModal('addGoalModal')" class="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> Add Goal
+                        </button>
+                    </div>
+
+                    <!-- Savings List -->
+                    <div class="space-y-3.5 max-h-[300px] overflow-y-auto pr-1" id="goalsListContainer">
+                        <!-- Dynamic Render -->
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                    <span class="text-slate-500">Monthly Savings Commitment:</span>
+                    <span id="totalMonthlySavingsText" class="font-bold text-teal-800 text-sm">$200.00</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- SECTION 5 & 6 GRID: PAYDAY PLANNER & CASH FLOW BREAKDOWN CHART -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- PAYDAY PLANNER & VARIABLE INCOME -->
+            <section class="lg:col-span-7 bg-white rounded-2xl p-5 card-shadow border border-slate-100 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-teal-700"></i>
+                            Payday Planner & Income Estimator
+                        </h2>
+                        <p class="text-xs text-slate-500">Manage your financial runway and upcoming paycheck</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Next Payday Date</label>
+                            <input type="date" id="nextPaydayInput" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-600 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Today's Reference Date</label>
+                            <input type="date" id="todayRefInput" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-teal-600 outline-none">
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <span class="text-xs text-slate-500 block">Days Until Next Payday:</span>
+                            <span id="plannerDaysRemaining" class="text-2xl font-black text-slate-800">14 Days</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Variable Work Schedule / Expected Check</div>
+                            <label class="block text-xs text-slate-500 mb-1">Estimated Upcoming Paycheck ($)</label>
+                            <div class="relative mb-2">
+                                <span class="absolute left-3 top-2 text-slate-400 font-medium text-xs">$</span>
+                                <input type="number" id="estimatedIncomeInput" value="650.00" step="10" class="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 outline-none">
+                            </div>
+                            <p class="text-[11px] text-slate-500 leading-normal">
+                                <i class="fa-solid fa-circle-info text-teal-600 mr-1"></i>
+                                Estimated income is kept separate from current available cash until deposited.
+                            </p>
+                        </div>
+                        <div class="pt-2 border-t border-slate-200 text-xs font-semibold text-teal-800 flex justify-between">
+                            <span>Projected Post-Payday Checking:</span>
+                            <span id="projectedCheckingText">$2,100.00</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CASH BREAKDOWN CHART & GUIDELINES -->
+            <section class="lg:col-span-5 bg-white rounded-2xl p-5 card-shadow border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-teal-700"></i>
+                        Checking Cash Allocation
+                    </h2>
+                    <p class="text-xs text-slate-500 mb-4">Visual breakdown of your checking balance</p>
+                    
+                    <div class="relative h-48 w-full flex items-center justify-center">
+                        <canvas id="cashChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between items-center">
+                    <span><i class="fa-solid fa-shield-halved text-teal-600"></i> Buffer Safety: <strong id="bufferSafetyText" class="text-slate-700">Protected ($300)</strong></span>
+                    <button onclick="openModal('bufferModal')" class="text-teal-700 hover:underline font-bold">Edit Buffer</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- SECTION 7: STUDENT MONEY GUIDELINES & FOOTER -->
+        <section class="bg-teal-800 text-white rounded-2xl p-6 card-shadow space-y-4">
+            <h3 class="text-sm font-extrabold uppercase tracking-wider text-cyan-200 flex items-center gap-2">
+                <i class="fa-solid fa-compass"></i> Student Cash Flow Guidelines & Best Practices
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                <div class="bg-white/10 backdrop-blur p-3.5 rounded-xl border border-white/10">
+                    <div class="font-bold text-cyan-100 mb-1">1. Safe-to-Spend Rule</div>
+                    <p class="text-slate-200 text-[11px] leading-relaxed">Checking Balance minus Unpaid Bills, Savings Commitments, and Emergency Buffer.</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur p-3.5 rounded-xl border border-white/10">
+                    <div class="font-bold text-cyan-100 mb-1">2. Daily Allowance Pace</div>
+                    <p class="text-slate-200 text-[11px] leading-relaxed">Safe-to-Spend divided by days remaining until payday. Stay under daily burn.</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur p-3.5 rounded-xl border border-white/10">
+                    <div class="font-bold text-cyan-100 mb-1">3. Emergency Buffer</div>
+                    <p class="text-slate-200 text-[11px] leading-relaxed">Keep $250–$500 untouched in checking to protect against unexpected fees.</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur p-3.5 rounded-xl border border-white/10">
+                    <div class="font-bold text-cyan-100 mb-1">4. 24-Hour Rule</div>
+                    <p class="text-slate-200 text-[11px] leading-relaxed">If a simulated purchase drops allowance below $10/day, wait 24 hours before buying.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-8">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+                <span class="font-bold text-slate-700">SpendWise</span> — Designed for College Students (Ages 18–25)
+            </div>
+            <div class="flex items-center space-x-4 text-slate-400">
+                <button onclick="openModal('privacyModal')" class="hover:text-slate-600">Privacy & Local Storage</button>
+                <span>•</span>
+                <button onclick="openModal('embedModal')" class="hover:text-slate-600">Export / Embed</button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- MODALS SECTION -->
+
+    <!-- Edit Checking Modal -->
+    <div id="editCheckingModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Update Checking Balance</h3>
+            <div>
+                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Current Balance ($)</label>
+                <input type="number" id="editCheckingInput" step="0.01" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-teal-600">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('editCheckingModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="saveCheckingBalance()" class="px-4 py-2 text-xs font-bold bg-teal-700 text-white hover:bg-teal-800 rounded-xl">Save Balance</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Goal Modal -->
+    <div id="editGoalModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Edit Savings Goal</h3>
+            <input type="hidden" id="editGoalId">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Goal Target Name</label>
+                    <input type="text" id="editGoalNameInput" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-teal-600">
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Current ($)</label>
+                        <input type="number" id="editGoalCurrentInput" step="5" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Target ($)</label>
+                        <input type="number" id="editGoalTargetInput" step="10" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Monthly ($)</label>
+                        <input type="number" id="editGoalMonthlyInput" step="5" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('editGoalModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="saveGoalEdits()" class="px-4 py-2 text-xs font-bold bg-teal-700 text-white hover:bg-teal-800 rounded-xl">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Buffer Modal -->
+    <div id="bufferModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Set Emergency Buffer Target</h3>
+            <p class="text-xs text-slate-500">This money stays in checking to prevent overdrafts and is excluded from Safe-to-Spend.</p>
+            <div>
+                <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Buffer Amount ($)</label>
+                <input type="number" id="editBufferInput" step="10" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-teal-600">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('bufferModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="saveBufferAmount()" class="px-4 py-2 text-xs font-bold bg-teal-700 text-white hover:bg-teal-800 rounded-xl">Save Buffer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Bill Modal -->
+    <div id="addBillModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Add Upcoming Bill</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Bill Name</label>
+                    <input type="text" id="billNameInput" placeholder="e.g. Wi-Fi & Utilities" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-teal-600">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Amount ($)</label>
+                        <input type="number" id="billAmountInput" step="0.01" placeholder="0.00" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Due Date</label>
+                        <input type="date" id="billDueDateInput" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('addBillModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="addNewBill()" class="px-4 py-2 text-xs font-bold bg-teal-700 text-white hover:bg-teal-800 rounded-xl">Add Bill</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Goal Modal -->
+    <div id="addGoalModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Add Savings Goal</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Goal Target Name</label>
+                    <input type="text" id="goalNameInput" placeholder="e.g. Textbook Fund" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-teal-600">
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Current ($)</label>
+                        <input type="number" id="goalCurrentInput" step="10" placeholder="0" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Target ($)</label>
+                        <input type="number" id="goalTargetInput" step="10" placeholder="500" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Monthly ($)</label>
+                        <input type="number" id="goalMonthlyInput" step="5" placeholder="50" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-600">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('addGoalModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="addNewGoal()" class="px-4 py-2 text-xs font-bold bg-teal-700 text-white hover:bg-teal-800 rounded-xl">Save Goal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal for Reset All Data -->
+    <div id="confirmResetModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 card-shadow space-y-4">
+            <div class="flex items-center gap-3 text-red-600">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg flex-shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-900">Reset All Financial Data?</h3>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                This action will delete all saved custom checking balances, upcoming bills, savings goals, payday settings, and purchase entries. The application will revert back to default sample benchmark values.
+            </p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeModal('confirmResetModal')" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button onclick="executeResetAllData()" class="px-4 py-2 text-xs font-bold bg-red-600 text-white hover:bg-red-700 rounded-xl">Reset Everything</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy & Data Modal -->
+    <div id="privacyModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 card-shadow space-y-4">
+            <div class="flex items-center gap-3 text-teal-800">
+                <i class="fa-solid fa-user-shield text-2xl"></i>
+                <h3 class="text-base font-bold">Privacy & Local Storage Information</h3>
+            </div>
+            <div class="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <p><strong>Zero-Server Privacy Guarantee:</strong> SpendWise does not require accounts, bank logins, credit card info, or server storage. All financial inputs stay 100% inside your browser's local storage (<code>localStorage</code>).</p>
+                <p><strong>Local Device Notice:</strong> Because data is stored locally in this browser, clearing browser history or cache will reset your figures. Anyone with physical access to this browser may view saved entries on this device.</p>
+                <div id="privacyIframeNote" class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-700">
+                    <strong>Embedded Google Sites Note:</strong> If third-party storage partitioning is blocked by your browser, SpendWise automatically falls back to secure session storage so calculations work cleanly without crashing.
+                </div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800 flex items-center justify-between">
+                <span>Want to wipe all local data and restart?</span>
+                <button onclick="confirmResetData()" class="px-3 py-1.5 bg-red-600 text-white font-bold rounded-lg text-[11px] hover:bg-red-700">Reset All Data</button>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal('privacyModal')" class="px-4 py-2 text-xs font-bold bg-slate-800 text-white rounded-xl">Got It</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Embed Google Sites Modal -->
+    <div id="embedModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 card-shadow space-y-4">
+            <div class="flex items-center gap-3 text-teal-800">
+                <i class="fa-solid fa-code text-2xl"></i>
+                <h3 class="text-base font-bold">Embed into Google Sites</h3>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                To embed this SpendWise prototype into your Google Sites page:
+            </p>
+            <ol class="list-decimal list-inside text-xs text-slate-600 space-y-1">
+                <li>Copy the HTML snippet below or host this file.</li>
+                <li>In Google Sites, click <strong>Insert &gt; Embed &gt; Embed Code</strong>.</li>
+                <li>Paste code and click <strong>Next &gt; Insert</strong>.</li>
+            </ol>
+            <div class="relative">
+                <textarea id="embedSnippet" readonly class="w-full h-24 p-2.5 bg-slate-100 border border-slate-300 rounded-xl text-[11px] font-mono text-slate-700 outline-none select-all"><iframe src="index.html" width="100%" height="750px" style="border:none; border-radius:12px;" title="SpendWise Student Dashboard"></iframe></textarea>
+                <button onclick="copyEmbedCode()" class="absolute top-2 right-2 bg-teal-700 text-white text-[11px] font-bold px-2.5 py-1 rounded hover:bg-teal-800">
+                    <i class="fa-regular fa-copy"></i> Copy
+                </button>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal('embedModal')" class="px-4 py-2 text-xs font-bold bg-slate-800 text-white rounded-xl">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICATION LOGIC & STATE MANAGEMENT -->
+    <script>
+        const STORAGE_KEY = 'spendwise_app_state_v2';
+
+        // Sample baseline benchmark data for first-time users
+        const SAMPLE_DATA = {
+            checkingBalance: 1450.00,
+            emergencyBuffer: 300.00,
+            todayDate: "2026-10-29",
+            nextPayday: "2026-11-12",
+            estimatedIncome: 650.00,
+            simItemName: "Concert Ticket & Uber",
+            simPrice: 120.00,
+            simCategory: "Entertainment",
+            bills: [
+                { id: '1', name: "Off-Campus Rent Share", dueDate: "2026-11-01", amount: 450.00, paid: false },
+                { id: '2', name: "Wi-Fi & Utilities Share", dueDate: "2026-11-03", amount: 45.00, paid: false },
+                { id: '3', name: "Phone Plan (Student Line)", dueDate: "2026-11-05", amount: 35.00, paid: false },
+                { id: '4', name: "Groceries & Campus Meals", dueDate: "2026-11-06", amount: 120.00, paid: false },
+                { id: '5', name: "Spotify Student & Streaming", dueDate: "2026-11-08", amount: 12.00, paid: true },
+                { id: '6', name: "Laundry & Campus Transport", dueDate: "2026-11-10", amount: 38.00, paid: false }
+            ],
+            goals: [
+                { id: '1', name: "Emergency Cash Cushion", current: 300, target: 500, monthly: 50 },
+                { id: '2', name: "Spring Break Road Trip", current: 240, target: 600, monthly: 40 },
+                { id: '3', name: "Laptop Upgrade Fund", current: 450, target: 1000, monthly: 60 },
+                { id: '4', name: "Textbooks & Course Materials", current: 180, target: 250, monthly: 30 },
+                { id: '5', name: "Career Wardrobe & Interviews", current: 80, target: 200, monthly: 20 }
+            ]
+        };
+
+        // Global State & Storage Availability Test
+        let state = {};
+        let cashChart = null;
+        let isLocalStorageAvailable = false;
+
+        // Rigorous check for LocalStorage accessibility in sandboxed/iframe contexts
+        function checkLocalStorageSupport() {
+            try {
+                if (typeof window.localStorage === 'undefined' || window.localStorage === null) {
+                    return false;
+                }
+                const testKey = '__spendwise_storage_test__';
+                window.localStorage.setItem(testKey, 'ok');
+                const result = window.localStorage.getItem(testKey) === 'ok';
+                window.localStorage.removeItem(testKey);
+                return result;
+            } catch (e) {
+                // Caught SecurityError / DOMException due to iframe sandboxing
+                return false;
+            }
+        }
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', () => {
+            isLocalStorageAvailable = checkLocalStorageSupport();
+            
+            // Show real-time storage indicator status
+            const badge = document.getElementById('storageStatusBadge');
+            const warningBanner = document.getElementById('storageWarningBanner');
+
+            if (!isLocalStorageAvailable) {
+                if (badge) {
+                    badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-xs"></i> Storage Blocked (Iframe)`;
+                    badge.className = "inline-flex items-center gap-1.5 bg-amber-500/30 text-amber-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-amber-400/40";
+                }
+                if (warningBanner) {
+                    warningBanner.classList.remove('hidden');
+                }
+            } else if (badge) {
+                badge.innerHTML = `<i class="fa-solid fa-hard-drive text-xs"></i> Storage Ready`;
+                badge.className = "inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-400/30";
+            }
+
+            loadState();
+            setupEventListeners();
+            initChart();
+            recalculate();
+        });
+
+        // Load State from LocalStorage or default to Sample Data
+        function loadState() {
+            let loaded = null;
+
+            if (isLocalStorageAvailable) {
+                try {
+                    const raw = window.localStorage.getItem(STORAGE_KEY);
+                    if (raw) {
+                        loaded = JSON.parse(raw);
+                    }
+                } catch (e) {
+                    console.warn("SpendWise: Failed to parse local storage data.", e);
+                }
+            }
+
+            if (loaded && typeof loaded === 'object') {
+                state = {
+                    checkingBalance: typeof loaded.checkingBalance === 'number' ? loaded.checkingBalance : SAMPLE_DATA.checkingBalance,
+                    emergencyBuffer: typeof loaded.emergencyBuffer === 'number' ? loaded.emergencyBuffer : SAMPLE_DATA.emergencyBuffer,
+                    todayDate: loaded.todayDate || SAMPLE_DATA.todayDate,
+                    nextPayday: loaded.nextPayday || SAMPLE_DATA.nextPayday,
+                    estimatedIncome: typeof loaded.estimatedIncome === 'number' ? loaded.estimatedIncome : SAMPLE_DATA.estimatedIncome,
+                    simItemName: loaded.simItemName !== undefined ? loaded.simItemName : SAMPLE_DATA.simItemName,
+                    simPrice: typeof loaded.simPrice === 'number' ? loaded.simPrice : SAMPLE_DATA.simPrice,
+                    simCategory: loaded.simCategory || SAMPLE_DATA.simCategory,
+                    bills: Array.isArray(loaded.bills) ? loaded.bills.map(sanitizeBill) : JSON.parse(JSON.stringify(SAMPLE_DATA.bills)),
+                    goals: Array.isArray(loaded.goals) ? loaded.goals.map(sanitizeGoal) : JSON.parse(JSON.stringify(SAMPLE_DATA.goals))
+                };
+            } else {
+                // First-time user: load sample data
+                state = JSON.parse(JSON.stringify(SAMPLE_DATA));
+                saveState();
+            }
+
+            // Sync Form Inputs
+            syncFormInputs();
+        }
+
+        // Sanitize Bill Objects against corrupted fields
+        function sanitizeBill(b) {
+            return {
+                id: b.id || Date.now().toString() + Math.random().toString(36).substr(2, 4),
+                name: String(b.name || 'Expense Item'),
+                dueDate: String(b.dueDate || new Date().toISOString().split('T')[0]),
+                amount: parseFloat(b.amount) || 0,
+                paid: Boolean(b.paid)
+            };
+        }
+
+        // Sanitize Savings Goal Objects against missing fields
+        function sanitizeGoal(g) {
+            return {
+                id: g.id || Date.now().toString() + Math.random().toString(36).substr(2, 4),
+                name: String(g.name || 'Savings Target'),
+                current: parseFloat(g.current) || 0,
+                target: parseFloat(g.target) || 0,
+                monthly: parseFloat(g.monthly) || 0
+            };
+        }
+
+        function syncFormInputs() {
+            document.getElementById('nextPaydayInput').value = state.nextPayday;
+            document.getElementById('todayRefInput').value = state.todayDate;
+            document.getElementById('estimatedIncomeInput').value = state.estimatedIncome;
+            document.getElementById('simItemName').value = state.simItemName;
+            document.getElementById('simPrice').value = state.simPrice;
+            document.getElementById('simCategory').value = state.simCategory;
+        }
+
+        // Save State locally immediately upon updates
+        function saveState() {
+            if (isLocalStorageAvailable) {
+                try {
+                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                } catch (e) {
+                    console.warn("SpendWise: Unable to write to localStorage.", e);
+                }
+            }
+            recalculate();
+        }
+
+        // Show Confirmation Modal before resetting data
+        function confirmResetData() {
+            closeModal('privacyModal');
+            openModal('confirmResetModal');
+        }
+
+        // Execute Data Reset
+        function executeResetAllData() {
+            if (isLocalStorageAvailable) {
+                try {
+                    window.localStorage.removeItem(STORAGE_KEY);
+                } catch(e) {}
+            }
+            state = JSON.parse(JSON.stringify(SAMPLE_DATA));
+            syncFormInputs();
+            closeModal('confirmResetModal');
+            saveState();
+        }
+
+        // Attach Event Listeners for Live Inputs
+        function setupEventListeners() {
+            document.getElementById('simItemName').addEventListener('input', (e) => {
+                state.simItemName = e.target.value;
+                saveState();
+            });
+            document.getElementById('simPrice').addEventListener('input', (e) => {
+                state.simPrice = parseFloat(e.target.value) || 0;
+                saveState();
+            });
+            document.getElementById('simCategory').addEventListener('change', (e) => {
+                state.simCategory = e.target.value;
+                saveState();
+            });
+            document.getElementById('nextPaydayInput').addEventListener('change', (e) => {
+                state.nextPayday = e.target.value;
+                saveState();
+            });
+            document.getElementById('todayRefInput').addEventListener('change', (e) => {
+                state.todayDate = e.target.value;
+                saveState();
+            });
+            document.getElementById('estimatedIncomeInput').addEventListener('input', (e) => {
+                state.estimatedIncome = parseFloat(e.target.value) || 0;
+                saveState();
+            });
+        }
+
+        // MAIN CALCULATION ENGINE
+        function recalculate() {
+            // 1. Calculate Days Remaining
+            const d1 = new Date(state.todayDate);
+            const d2 = new Date(state.nextPayday);
+            const diffTime = d2 - d1;
+            let daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (isNaN(daysRemaining) || daysRemaining < 0) daysRemaining = 0;
+
+            // 2. Compute Unpaid Bills Due BEFORE or ON Next Payday
+            let unpaidBillsBeforePayday = 0;
+            state.bills.forEach(bill => {
+                if (!bill.paid) {
+                    if (!bill.dueDate || bill.dueDate <= state.nextPayday) {
+                        unpaidBillsBeforePayday += parseFloat(bill.amount) || 0;
+                    }
+                }
+            });
+
+            // 3. Compute Savings Commitments
+            let savingsCommitments = 0;
+            state.goals.forEach(goal => {
+                savingsCommitments += parseFloat(goal.monthly) || 0;
+            });
+
+            // 4. Safe-To-Spend Rule: MAX(0, Checking Balance - Unpaid Bills - Savings Commitments - Buffer)
+            const checking = state.checkingBalance || 0;
+            const buffer = state.emergencyBuffer || 0;
+            const reservedTotal = unpaidBillsBeforePayday + savingsCommitments + buffer;
+
+            const rawSafeToSpend = checking - reservedTotal;
+            const safeToSpend = Math.max(0, rawSafeToSpend);
+
+            // Reserve Ratio
+            const reserveRatio = checking > 0 ? Math.min(100, (reservedTotal / checking) * 100) : 0;
+
+            // Daily Allowance
+            const dailyAllowance = daysRemaining > 0 ? (safeToSpend / daysRemaining) : safeToSpend;
+
+            // Shortfall Check
+            const shortfallAlert = document.getElementById('shortfallAlert');
+            if (rawSafeToSpend < 0) {
+                const deficit = Math.abs(rawSafeToSpend);
+                document.getElementById('shortfallDetails').innerText = 
+                    `Your committed bills ($${unpaidBillsBeforePayday.toFixed(2)}), savings ($${savingsCommitments.toFixed(2)}), and buffer ($${buffer.toFixed(2)}) exceed your checking balance by $${deficit.toFixed(2)}. Adjust commitments or add funds.`;
+                shortfallAlert.classList.remove('hidden');
+            } else {
+                shortfallAlert.classList.add('hidden');
+            }
+
+            // 5. Update Key Metrics UI
+            document.getElementById('dashChecking').innerText = formatCurrency(checking);
+            document.getElementById('dashReserved').innerText = formatCurrency(reservedTotal);
+            document.getElementById('dashReserveRatio').innerText = `${reserveRatio.toFixed(1)}%`;
+            document.getElementById('dashSafeToSpend').innerText = formatCurrency(safeToSpend);
+            document.getElementById('dashDailyAllowance').innerText = formatCurrency(dailyAllowance);
+            document.getElementById('dashDaysLeftBadge').innerText = `${daysRemaining} days left`;
+            document.getElementById('plannerDaysRemaining').innerText = `${daysRemaining} Days`;
+            document.getElementById('totalUnpaidBillsText').innerText = formatCurrency(unpaidBillsBeforePayday);
+            document.getElementById('totalMonthlySavingsText').innerText = formatCurrency(savingsCommitments);
+            document.getElementById('bufferSafetyText').innerText = `Protected (${formatCurrency(buffer)})`;
+
+            // Estimated Projected balance
+            const projected = checking + (state.estimatedIncome || 0);
+            document.getElementById('projectedCheckingText').innerText = formatCurrency(projected);
+
+            // 6. Run Purchase Simulator
+            runPurchaseSimulator(safeToSpend, dailyAllowance, daysRemaining);
+
+            // 7. Render Tables and Goals
+            renderBillsTable();
+            renderGoalsList();
+
+            // 8. Update Breakdown Chart
+            updateChart(unpaidBillsBeforePayday, savingsCommitments, buffer, safeToSpend);
+        }
+
+        // PURCHASE SIMULATOR CALCULATIONS & VERDICT
+        function runPurchaseSimulator(safeToSpend, currentDailyAllowance, daysRemaining) {
+            const price = state.simPrice || 0;
+            const revisedSafe = safeToSpend - price;
+            const revisedDaily = daysRemaining > 0 ? (Math.max(0, revisedSafe) / daysRemaining) : Math.max(0, revisedSafe);
+            const dailyDrop = currentDailyAllowance - revisedDaily;
+            const percentOfSafe = safeToSpend > 0 ? (price / safeToSpend) * 100 : (price > 0 ? 100 : 0);
+
+            // UI Elements
+            document.getElementById('simRevisedSafe').innerText = formatCurrency(revisedSafe);
+            document.getElementById('simRevisedDaily').innerText = formatCurrency(revisedDaily);
+            document.getElementById('simDailyDrop').innerText = `-$${Math.max(0, dailyDrop).toFixed(2)} / day`;
+            document.getElementById('simPercentText').innerText = `${percentOfSafe.toFixed(1)}%`;
+            
+            const progressBar = document.getElementById('simPercentBar');
+            progressBar.style.width = `${Math.min(100, percentOfSafe)}%`;
+
+            const verdictBox = document.getElementById('simVerdictBox');
+            const verdictIcon = document.getElementById('simVerdictIcon');
+            const verdictTitle = document.getElementById('simVerdictTitle');
+            const verdictDesc = document.getElementById('simVerdictDesc');
+            const runwayText = document.getElementById('simRunwayText');
+
+            if (price <= 0) {
+                verdictBox.className = "p-3.5 rounded-xl border flex items-start gap-3 bg-slate-100 border-slate-200 text-slate-800";
+                verdictIcon.innerHTML = `<i class="fa-solid fa-circle-info text-slate-500"></i>`;
+                verdictTitle.innerText = "NO PURCHASE ENTERED";
+                verdictDesc.innerText = "Enter an item price to test how it impacts your daily allowance until payday.";
+                runwayText.innerText = "Budget Intact";
+                runwayText.className = "text-slate-700 font-bold";
+            } else if (revisedSafe < 0) {
+                verdictBox.className = "p-3.5 rounded-xl border flex items-start gap-3 bg-red-50 border-red-200 text-red-900";
+                verdictIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-600"></i>`;
+                verdictTitle.innerText = "DANGER • OVERDRAFT / BUFFER RISKS";
+                verdictDesc.innerText = `This $${price.toFixed(2)} purchase exceeds your Safe-To-Spend cash by $${Math.abs(revisedSafe).toFixed(2)}. Buying this eats into your reserved bill funds or emergency buffer!`;
+                runwayText.innerText = "Payday Runway Compromised";
+                runwayText.className = "text-red-600 font-bold";
+            } else if (percentOfSafe > 40 || revisedDaily < 10) {
+                verdictBox.className = "p-3.5 rounded-xl border flex items-start gap-3 bg-amber-50 border-amber-200 text-amber-900";
+                verdictIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-600"></i>`;
+                verdictTitle.innerText = "CAUTION • SIGNIFICANT IMPACT";
+                verdictDesc.innerText = `Affordable, but consumes ${percentOfSafe.toFixed(1)}% of your discretionary cash and drops daily allowance from $${currentDailyAllowance.toFixed(2)} to $${revisedDaily.toFixed(2)}/day.`;
+                runwayText.innerText = "Tight Runway";
+                runwayText.className = "text-amber-700 font-bold";
+            } else {
+                verdictBox.className = "p-3.5 rounded-xl border flex items-start gap-3 bg-emerald-50 border-emerald-200 text-emerald-900";
+                verdictIcon.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600"></i>`;
+                verdictTitle.innerText = "SAFE • MINIMAL BUDGET IMPACT";
+                verdictDesc.innerText = `Looks good! This purchase uses only ${percentOfSafe.toFixed(1)}% of your Safe-To-Spend money, leaving $${revisedDaily.toFixed(2)}/day until payday.`;
+                runwayText.innerText = "Budget Intact";
+                runwayText.className = "text-emerald-700 font-bold";
+            }
+        }
+
+        // RENDER BILLS TABLE
+        function renderBillsTable() {
+            const tbody = document.getElementById('billsTableBody');
+            tbody.innerHTML = '';
+
+            if (state.bills.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400 italic">No bills added yet. Click "+ Add Bill".</td></tr>`;
+                return;
+            }
+
+            state.bills.forEach(bill => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition";
+                tr.innerHTML = `
+                    <td class="py-2.5 font-bold text-slate-800">${escapeHtml(bill.name)}</td>
+                    <td class="py-2.5 text-slate-500 font-medium">${bill.dueDate}</td>
+                    <td class="py-2.5 text-right font-bold text-slate-900">$${parseFloat(bill.amount).toFixed(2)}</td>
+                    <td class="py-2.5 text-center">
+                        <input type="checkbox" ${bill.paid ? 'checked' : ''} onchange="toggleBillPaid('${bill.id}')" class="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-600 cursor-pointer">
+                    </td>
+                    <td class="py-2.5 text-right">
+                        <button onclick="deleteBill('${bill.id}')" class="text-slate-400 hover:text-red-500 p-1" title="Delete Bill">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // RENDER SAVINGS GOALS
+        function renderGoalsList() {
+            const container = document.getElementById('goalsListContainer');
+            container.innerHTML = '';
+
+            if (state.goals.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 py-4 text-xs italic">No savings goals set. Click "+ Add Goal".</div>`;
+                return;
+            }
+
+            state.goals.forEach(goal => {
+                const pct = goal.target > 0 ? Math.min(100, (goal.current / goal.target) * 100) : 0;
+                const div = document.createElement('div');
+                div.className = "bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1.5";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-bold text-slate-800">${escapeHtml(goal.name)}</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-500">$${goal.current} / $${goal.target}</span>
+                            <button onclick="openEditGoalModal('${goal.id}')" class="text-slate-400 hover:text-teal-700 text-xs p-1" title="Edit Goal">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button onclick="deleteGoal('${goal.id}')" class="text-slate-400 hover:text-red-500 text-xs p-1" title="Delete Goal">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div class="bg-teal-600 h-full transition-all duration-300" style="width: ${pct}%;"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] text-slate-500">
+                        <span>Monthly Commit: <strong class="text-teal-800">$${goal.monthly}/mo</strong></span>
+                        <span class="font-semibold text-slate-600">${pct.toFixed(0)}% Saved</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // CHART VISUALIZATION
+        function initChart() {
+            const ctx = document.getElementById('cashChart').getContext('2d');
+            cashChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Unpaid Bills', 'Savings Goals', 'Emergency Buffer', 'Safe-to-Spend'],
+                    datasets: [{
+                        data: [688, 200, 300, 262],
+                        backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11, family: 'Plus Jakarta Sans' }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function updateChart(bills, savings, buffer, safe) {
+            if (!cashChart) return;
+            cashChart.data.datasets[0].data = [bills, savings, buffer, safe];
+            cashChart.update();
+        }
+
+        // BILL ACTIONS
+        function toggleBillPaid(id) {
+            const bill = state.bills.find(b => b.id === id);
+            if (bill) {
+                bill.paid = !bill.paid;
+                saveState();
+            }
+        }
+
+        function deleteBill(id) {
+            state.bills = state.bills.filter(b => b.id !== id);
+            saveState();
+        }
+
+        function addNewBill() {
+            const name = document.getElementById('billNameInput').value.trim();
+            const amount = parseFloat(document.getElementById('billAmountInput').value) || 0;
+            const dueDate = document.getElementById('billDueDateInput').value;
+
+            if (!name || amount <= 0 || !dueDate) {
+                return;
+            }
+
+            state.bills.push({
+                id: Date.now().toString(),
+                name: name,
+                amount: amount,
+                dueDate: dueDate,
+                paid: false
+            });
+
+            document.getElementById('billNameInput').value = '';
+            document.getElementById('billAmountInput').value = '';
+            closeModal('addBillModal');
+            saveState();
+        }
+
+        // GOAL ACTIONS
+        function deleteGoal(id) {
+            state.goals = state.goals.filter(g => g.id !== id);
+            saveState();
+        }
+
+        function openEditGoalModal(id) {
+            const goal = state.goals.find(g => g.id === id);
+            if (!goal) return;
+            
+            document.getElementById('editGoalId').value = goal.id;
+            document.getElementById('editGoalNameInput').value = goal.name;
+            document.getElementById('editGoalCurrentInput').value = goal.current;
+            document.getElementById('editGoalTargetInput').value = goal.target;
+            document.getElementById('editGoalMonthlyInput').value = goal.monthly;
+            
+            openModal('editGoalModal');
+        }
+
+        function saveGoalEdits() {
+            const id = document.getElementById('editGoalId').value;
+            const goal = state.goals.find(g => g.id === id);
+            if (!goal) return;
+
+            const name = document.getElementById('editGoalNameInput').value.trim();
+            const current = parseFloat(document.getElementById('editGoalCurrentInput').value) || 0;
+            const target = parseFloat(document.getElementById('editGoalTargetInput').value) || 0;
+            const monthly = parseFloat(document.getElementById('editGoalMonthlyInput').value) || 0;
+
+            if (!name || target <= 0) return;
+
+            goal.name = name;
+            goal.current = current;
+            goal.target = target;
+            goal.monthly = monthly;
+
+            closeModal('editGoalModal');
+            saveState();
+        }
+
+        function addNewGoal() {
+            const name = document.getElementById('goalNameInput').value.trim();
+            const current = parseFloat(document.getElementById('goalCurrentInput').value) || 0;
+            const target = parseFloat(document.getElementById('goalTargetInput').value) || 0;
+            const monthly = parseFloat(document.getElementById('goalMonthlyInput').value) || 0;
+
+            if (!name || target <= 0) {
+                return;
+            }
+
+            state.goals.push({
+                id: Date.now().toString(),
+                name: name,
+                current: current,
+                target: target,
+                monthly: monthly
+            });
+
+            document.getElementById('goalNameInput').value = '';
+            document.getElementById('goalCurrentInput').value = '';
+            document.getElementById('goalTargetInput').value = '';
+            document.getElementById('goalMonthlyInput').value = '';
+            closeModal('addGoalModal');
+            saveState();
+        }
+
+        // EDIT CHECKING & BUFFER
+        function saveCheckingBalance() {
+            const val = parseFloat(document.getElementById('editCheckingInput').value);
+            if (!isNaN(val)) {
+                state.checkingBalance = val;
+                closeModal('editCheckingModal');
+                saveState();
+            }
+        }
+
+        function saveBufferAmount() {
+            const val = parseFloat(document.getElementById('editBufferInput').value);
+            if (!isNaN(val)) {
+                state.emergencyBuffer = val;
+                closeModal('bufferModal');
+                saveState();
+            }
+        }
+
+        // MODAL HELPERS
+        function openModal(id) {
+            if (id === 'editCheckingModal') {
+                document.getElementById('editCheckingInput').value = state.checkingBalance;
+            } else if (id === 'bufferModal') {
+                document.getElementById('editBufferInput').value = state.emergencyBuffer;
+            }
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function copyEmbedCode() {
+            const textarea = document.getElementById('embedSnippet');
+            textarea.select();
+            document.execCommand('copy');
+            alert("Embed code copied to clipboard! Paste it into Google Sites using Insert > Embed > Embed Code.");
+        }
+
+        // UTILITY FUNCTIONS
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
